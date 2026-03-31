@@ -1,6 +1,4 @@
 """
-registration.py
-───────────────
 Step 2 of Part 2: Register ImageCAS atlas to 25 COCA non-contrast scans.
 
 Strategy:
@@ -21,12 +19,12 @@ Inputs:
 Outputs:
   - registration_output/
       ├── {scan_id}/
-      │    ├── transform_rigid.tfm       ← rigid transform
-      │    ├── transform_affine.tfm      ← affine transform
-      │    ├── warped_atlas_img.nii.gz   ← atlas warped to COCA space
-      │    ├── warped_atlas_seg.nii.gz   ← vessel mask in COCA space
-      │    └── registration_meta.json   ← timing + metric value
-      └── registration_results.csv      ← summary table
+      │    ├── transform_rigid.tfm 
+      │    ├── transform_affine.tfm    
+      │    ├── warped_atlas_img.nii.gz   
+      │    ├── warped_atlas_seg.nii.gz 
+      │    └── registration_meta.json 
+      └── registration_results.csv 
 
 Usage:
     python registration.py
@@ -41,7 +39,7 @@ import SimpleITK as sitk
 from pathlib import Path
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
+# Paths
 ATLAS_IMG = Path(r"...\COCA_output\atlas\atlas_img.nii.gz")
 ATLAS_SEG = Path(r"...\COCA_output\atlas\atlas_seg.nii.gz")
 SPLIT_CSV = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
@@ -49,12 +47,12 @@ RESAMPLED = Path(r"...\COCA_output\data_resampled")
 OUT_DIR   = Path(r"...\COCA_output\registration_output")
 
 
-# ── Registration Parameters ────────────────────────────────────────────────────
+#  Registration Parameters 
 REG_PARAMS = {
     "metric"                  : "MattesMutualInformation",
     "num_histogram_bins"      : 50,
     "sampling_percentage"     : 0.10,
-    "random_seed"             : 42,       # fixed seed — reproducible results
+    "random_seed"             : 42,       # fixed seed
     "optimizer"               : "GradientDescentLineSearch",
     "learning_rate"           : 1.0,
     "num_iterations"          : 100,
@@ -69,7 +67,7 @@ def crop_to_cardiac_roi(image: sitk.Image, margin_mm: float = 80.0) -> tuple:
     """
     Crops image to a cardiac-focused region of interest.
     
-    Strategy:
+    Workflow:
       XY: crop 160x160mm box around image center
           (coronary arteries are approximately centered in axial plane)
       Z:  keep middle 70% of slices
@@ -131,7 +129,7 @@ def apply_crop(image: sitk.Image, crop_params: dict) -> sitk.Image:
     ])
     roi.SetIndex([p["x_start"], p["y_start"], p["z_start"]])
     return roi.Execute(image)
-# ── Registration Function ──────────────────────────────────────────────────────
+#  Registration Function 
 
 def register_atlas_to_scan(
     fixed_img  : sitk.Image,
@@ -155,9 +153,7 @@ def register_atlas_to_scan(
     """
     registration = sitk.ImageRegistrationMethod()
 
-    # ── Metric — Mattes Mutual Information ────────────────────────────────
-    # Standard for cross-modal registration (CCTA→NCCT)
-    # Fixed seed per level prevents non-deterministic sampling crashes
+    #  MI
     registration.SetMetricAsMattesMutualInformation(
         numberOfHistogramBins=REG_PARAMS["num_histogram_bins"]
     )
@@ -167,11 +163,11 @@ def register_atlas_to_scan(
     seed=REG_PARAMS["random_seed"]
     )
 
-    # ── Interpolator ───────────────────────────────────────────────────────
+    #  Interpolator 
     registration.SetInterpolator(sitk.sitkLinear)
 
-    # ── Optimizer ─────────────────────────────────────────────────────────
-    # GradientDescentLineSearch: adaptive step size, robust for MI
+    #  Optimizer 
+    # GradientDescentLineSearch
     registration.SetOptimizerAsGradientDescentLineSearch(
         learningRate=REG_PARAMS["learning_rate"],
         numberOfIterations=REG_PARAMS["num_iterations"],
@@ -180,8 +176,8 @@ def register_atlas_to_scan(
     )
     registration.SetOptimizerScalesFromPhysicalShift()
 
-    # ── Multi-resolution pyramid ───────────────────────────────────────────
-    # [4, 2, 1] → coarse to fine alignment
+    #  Multi-resolution pyramid 
+    # [4, 2, 1] coarse to fine alignment
     registration.SetShrinkFactorsPerLevel(
         shrinkFactors=REG_PARAMS["shrink_factors"]
     )
@@ -190,7 +186,7 @@ def register_atlas_to_scan(
     )
     registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
 
-    # ── Transform initialization ───────────────────────────────────────────
+    #  Transform initialization 
     if stage == "rigid":
         initial_transform = sitk.CenteredTransformInitializer(
             fixed_img,
@@ -208,7 +204,7 @@ def register_atlas_to_scan(
 
     registration.SetInitialTransform(initial_transform, inPlace=False)
 
-    # ── Execute ────────────────────────────────────────────────────────────
+    #  Execute 
     t0        = time.time()
     transform = registration.Execute(fixed_img, moving_img)
     elapsed   = time.time() - t0
@@ -244,14 +240,14 @@ def apply_transform_to_volume(
     return resampler.Execute(moving)
 
 
-# ── Main Pipeline ──────────────────────────────────────────────────────────────
+#  Main Pipeline 
 
 def run_registration_pipeline():
     print("=" * 60)
     print("  ATLAS REGISTRATION PIPELINE — Step 2 of Part 2")
     print("=" * 60)
 
-    # ── Load atlas ─────────────────────────────────────────────────────────
+    # Load atlas 
     print("\nLoading atlas...")
     assert ATLAS_IMG.exists(), f"Atlas image not found: {ATLAS_IMG}"
     assert ATLAS_SEG.exists(), f"Atlas mask not found:  {ATLAS_SEG}"
@@ -274,7 +270,7 @@ def run_registration_pipeline():
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # ── Registration loop ──────────────────────────────────────────────────
+    # Registration loop 
     results = []
     print(f"\n{'─'*60}")
     print(f"{'Scan':<15} {'Category':<12} {'Rigid(s)':>9} {'Affine(s)':>10} "
@@ -297,13 +293,13 @@ def run_registration_pipeline():
         scan_out.mkdir(parents=True, exist_ok=True)
 
         try:
-            # ── Load + normalize fixed image ───────────────────────────
+            # Load + normalize fixed image 
             fixed_img = sitk.Cast(
                 sitk.ReadImage(str(img_path)), sitk.sitkFloat32
             )
             fixed_seg = sitk.ReadImage(str(seg_path))
 
-            # HU window → [0, 1] to match atlas intensity space
+            # HU window to match atlas intensity space
             fixed_img = sitk.Clamp(fixed_img, sitk.sitkFloat32, -100.0, 900.0)
             fixed_img = sitk.ShiftScale(
                 fixed_img, shift=100.0, scale=1.0 / 1000.0
@@ -311,21 +307,20 @@ def run_registration_pipeline():
 
             t_total_start = time.time()
 
-            # ── Crop both images to cardiac ROI for registration ───────
-            # Crop is based on fixed image center — atlas gets same crop
+            #  Crop both images to cardiac ROI for registration 
             fixed_cropped, crop_params = crop_to_cardiac_roi(fixed_img)
 
-            # Atlas must be same size as fixed for crop — resample atlas
+            # Atlas must be same size as fixed for crop, resample atlas
             # to fixed image space first, then crop
             atlas_resampled_to_fixed = sitk.Resample(
             atlas_img, fixed_img,
-            sitk.Transform(),       # identity — just resample to same grid
+            sitk.Transform(),       # identity: just resample to same grid
             sitk.sitkLinear, 0.0,
             fixed_img.GetPixelID()
             )
             atlas_cropped = apply_crop(atlas_resampled_to_fixed, crop_params)
 
-            # ── Retry loop ─────────────────────────────────────────────
+            #  Retry loop 
             rigid_transform = affine_transform = None
             rigid_metric = affine_metric = rigid_time = affine_time = 0.0
 
@@ -337,7 +332,7 @@ def run_registration_pipeline():
                             fixed_img, atlas_img, stage="rigid"
                         )
 
-                    # Resample atlas with rigid result — match pixel type
+                    # Resample atlas with rigid result, match pixel type
                     resampled_atlas = sitk.Resample(
                         atlas_img,
                         fixed_img,
@@ -353,7 +348,7 @@ def run_registration_pipeline():
                             fixed_img, resampled_atlas, stage="affine"
                         )
 
-                    break  # success — exit retry loop
+                    break  # success exit retry loop
 
                 except Exception as retry_err:
                     if attempt < REG_PARAMS["max_retries"] - 1:
@@ -365,12 +360,12 @@ def run_registration_pipeline():
 
             total_time = time.time() - t_total_start
 
-            # ── Compose rigid + affine into single transform ───────────
+            #  Compose rigid + affine into single transform 
             composite = sitk.CompositeTransform(3)
             composite.AddTransform(rigid_transform)
             composite.AddTransform(affine_transform)
 
-            # ── Apply composite transform to atlas image and mask ──────
+            #  Apply composite transform to atlas image and mask 
             warped_img = apply_transform_to_volume(
                 atlas_img, fixed_img, composite, is_mask=False
             )
@@ -378,13 +373,13 @@ def run_registration_pipeline():
                 atlas_seg, fixed_img, composite, is_mask=True
             )
 
-            # ── Save transforms ────────────────────────────────────────
+            # Save transforms 
             sitk.WriteTransform(rigid_transform,
                                 str(scan_out / "transform_rigid.tfm"))
             sitk.WriteTransform(affine_transform,
                                 str(scan_out / "transform_affine.tfm"))
 
-            # ── Save warped volumes ────────────────────────────────────
+            # Save warped volumes 
             sitk.WriteImage(warped_img,
                             str(scan_out / "warped_atlas_img.nii.gz"),
                             useCompression=True)
@@ -392,7 +387,7 @@ def run_registration_pipeline():
                             str(scan_out / "warped_atlas_seg.nii.gz"),
                             useCompression=True)
 
-            # ── Save per-scan metadata ─────────────────────────────────
+            #  Save per-scan metadata 
             meta = {
                 "scan_id"            : scan_id,
                 "category"           : category,
@@ -411,7 +406,7 @@ def run_registration_pipeline():
 
             print(f"{scan_id:<15} {category:<12} {rigid_time:>9.1f} "
                   f"{affine_time:>10.1f} {total_time:>9.1f} "
-                  f"{affine_metric:>10.4f} {'✅':>8}")
+                  f"{affine_metric:>10.4f} {'Successful':>8}")
 
             results.append({
                 "scan_id"      : scan_id,
@@ -435,12 +430,12 @@ def run_registration_pipeline():
                 "status"  : f"error: {str(e)[:50]}"
             })
 
-    # ── Save results CSV ───────────────────────────────────────────────────
+    #  Save results CSV 
     results_df  = pd.DataFrame(results)
     results_csv = OUT_DIR / "registration_results.csv"
     results_df.to_csv(results_csv, index=False)
 
-    # ── Summary ────────────────────────────────────────────────────────────
+    #  Summary 
     print(f"\n{'='*60}")
     successful = results_df[results_df["status"] == "success"]
     if len(successful) > 0:
@@ -450,7 +445,7 @@ def run_registration_pipeline():
         print(f"  Median time  : {successful['total_time_s'].median():.1f}s per scan")
         print(f"  Total time   : {successful['total_time_s'].sum()/60:.1f} minutes")
         print(f"  Mean metric  : {successful['final_metric'].mean():.4f}")
-    print(f"\n✅ Results saved → {results_csv}")
+    print(f"\n Results saved → {results_csv}")
     print(f"   Output dir   → {OUT_DIR}")
 
 
