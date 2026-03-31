@@ -6,11 +6,11 @@ from pathlib import Path
 # This bypasses all 'current working directory' issues
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# 2. Force this directory into the system path at the very beginning
+# 2. to force this directory into the system path
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-# 3. Diagnostic check (optional but helpful)
+# 3. Diagnostic check
 print(f"Pipeline running from: {SCRIPT_DIR}")
 
 try:
