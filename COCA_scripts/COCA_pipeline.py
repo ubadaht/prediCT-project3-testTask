@@ -2,7 +2,7 @@ import sys
 import os
 from pathlib import Path
 
-# 1. Get the absolute path of the directory where THIS script is located
+# 1. to get the absolute path of the directory where this script is located
 # This bypasses all 'current working directory' issues
 SCRIPT_DIR = Path(__file__).resolve().parent
 
