@@ -1,7 +1,5 @@
 """
-coca_dataloader.py
-──────────────────
-Efficient MONAI DataLoader for COCA Cardiac Calcium Scoring Dataset.
+MONAI DataLoader for COCA Cardiac Calcium Scoring Dataset.
 
 Design:
   - Reads split_index.csv produced by stratified_split.py
@@ -38,27 +36,27 @@ from monai.transforms import (
 )
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
+# Paths
 SPLIT_CSV      = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
 RESAMPLED_DIR  = Path(r"...\COCA_output\data_resampled")
 CACHE_DIR      = Path(r"...\COCA_output\cache")
 
-# ── Volume shape ───────────────────────────────────────────────────────────────
+# Volume shape
 # All volumes padded/cropped to this shape for batching
 # (256, 256, 48) covers ~95% of scans without losing cardiac region
 TARGET_SHAPE = (256, 256, 48)   # (X, Y, Z) in MONAI spatial convention
 
-# ── HU Window ─────────────────────────────────────────────────────────────────
+# HU Window
 HU_MIN = -100.0
 HU_MAX =  900.0
 
-# ── DataLoader settings ────────────────────────────────────────────────────────
-BATCH_SIZE  = 2    # small batch — 3D volumes are large
+# DataLoader settings
+BATCH_SIZE  = 2    # small batch, 3D volumes are large
 NUM_WORKERS = 2    # parallel loading workers
 PIN_MEMORY  = True # faster CPU → GPU transfer
 
 
-# ── Helper — build data list ───────────────────────────────────────────────────
+# Helper to build data list
 
 def build_data_list(df: pd.DataFrame) -> list:
     """
@@ -104,7 +102,7 @@ def build_data_list(df: pd.DataFrame) -> list:
     return data_list
 
 
-# ── Transform Pipelines ────────────────────────────────────────────────────────
+# Transform Pipelines
 
 def get_train_transforms():
     """
@@ -114,12 +112,12 @@ def get_train_transforms():
     """
     return Compose([
 
-        # ── Load & Format ──────────────────────────────────────────────────
+        # Load & Format
         LoadImaged(keys=["image", "mask"], image_only=True),
         EnsureChannelFirstd(keys=["image", "mask"]),
         EnsureTyped(keys=["image", "mask"], dtype=torch.float32),
 
-        # ── HU Windowing ───────────────────────────────────────────────────
+        # HU Windowing
         ScaleIntensityRanged(
             keys=["image"],
             a_min=HU_MIN, a_max=HU_MAX,
@@ -127,7 +125,7 @@ def get_train_transforms():
             clip=True
         ),
 
-        # ── Uniform Shape (Pad then Crop) ──────────────────────────────────
+        # Uniform Shape (Pad then Crop)
         # Step 1: Pad volumes smaller than TARGET_SHAPE with zeros
         SpatialPadd(
             keys=["image", "mask"],
@@ -142,7 +140,7 @@ def get_train_transforms():
             roi_size=TARGET_SHAPE
         ),
 
-        # ── Geometric Augmentation ─────────────────────────────────────────
+        # Geometric Augmentation
         RandFlipd(
             keys=["image", "mask"],
             spatial_axis=2,         # X axis = left/right flip
@@ -167,7 +165,7 @@ def get_train_transforms():
             keep_size=True
         ),
 
-        # ── Intensity Augmentation (image only) ────────────────────────────
+        # Intensity Augmentation (image only)
         RandGaussianNoised(
             keys=["image"],
             mean=0.0,
@@ -180,7 +178,7 @@ def get_train_transforms():
             prob=0.20
         ),
 
-        # ── Final clamp to [0, 1] after intensity augmentation ─────────────
+        # Final clamp to [0, 1] after intensity augmentation
         ScaleIntensityRanged(
             keys=["image"],
             a_min=0.0, a_max=1.0,
@@ -221,7 +219,7 @@ def get_val_test_transforms():
     ])
 
 
-# ── Dataset & DataLoader Factory ───────────────────────────────────────────────
+# Dataset & DataLoader Factory
 
 def get_dataloaders(
     use_cache : bool = True,
@@ -255,16 +253,16 @@ def get_dataloaders(
 
     print(f"  Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
 
-    # ── Build data lists ───────────────────────────────────────────────────
+    # Build data lists
     train_list = build_data_list(train_df)
     val_list   = build_data_list(val_df)
     test_list  = build_data_list(test_df)
 
-    # ── Build transforms ───────────────────────────────────────────────────
+    # Build transforms
     train_tx   = get_train_transforms()
     val_test_tx = get_val_test_transforms()
 
-    # ── Build datasets ─────────────────────────────────────────────────────
+    # Build datasets
     if use_cache:
         # PersistentDataset: caches to disk — survives restarts
         # First run is slow (processes + saves), subsequent runs are fast
@@ -291,7 +289,7 @@ def get_dataloaders(
         print(f"  Using PersistentDataset (cache: {CACHE_DIR})")
 
     else:
-        # CacheDataset: caches in RAM — faster but uses more memory
+        # CacheDataset: caches in RAM faster but uses more memory
         train_ds = CacheDataset(
             data=train_list,
             transform=train_tx,
@@ -312,7 +310,7 @@ def get_dataloaders(
         )
         print(f"  Using CacheDataset (RAM cache)")
 
-    # ── Build DataLoaders ──────────────────────────────────────────────────
+    #  Build DataLoaders
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
@@ -347,7 +345,7 @@ def get_dataloaders(
     return train_loader, val_loader, test_loader
 
 
-# ── Dataset Statistics ─────────────────────────────────────────────────────────
+# Dataset Statistics
 
 def get_dataset_stats(loader: DataLoader, n_batches: int = 5):
     """
@@ -375,7 +373,7 @@ def get_dataset_stats(loader: DataLoader, n_batches: int = 5):
     print(f"\nOverall — mean: {np.mean(means):.4f}  std: {np.mean(stds):.4f}")
 
 
-# ── Standalone verification ────────────────────────────────────────────────────
+# Standalone verification
 
 if __name__ == "__main__":
     print("=" * 55)
@@ -411,4 +409,4 @@ if __name__ == "__main__":
     # Full stats over 5 batches
     get_dataset_stats(train_loader, n_batches=5)
 
-    print("\n✅ DataLoader verification complete.")
+    print("\n DataLoader verification complete.")
