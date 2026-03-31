@@ -1,29 +1,4 @@
 """
-atlas_preparation.py
-────────────────────
-Step 1 of Part 2: Prepare the ImageCAS atlas for registration.
-
-What this does:
-  1. Loads atlas CCTA volume + vessel mask (Scan 100)
-  2. Resamples both to match COCA spacing (0.7 x 0.7 x 3.0 mm)
-  3. Applies HU windowing to atlas volume
-  4. Saves resampled atlas to COCA_output/atlas/
-  5. Prints before/after statistics to verify
-
-Why resample the atlas first?
-  Atlas spacing : 0.32-0.38 x 0.32-0.38 x 0.5 mm (very fine)
-  COCA spacing  : 0.7 x 0.7 x 3.0 mm
-  
-  Registration works best when fixed and moving images
-  have similar voxel spacing — otherwise the optimizer
-  treats one voxel in atlas as equivalent to one voxel
-  in COCA which are physically different sizes.
-  
-  Resampling atlas to COCA spacing:
-    - Reduces atlas size (faster registration)
-    - Makes voxel sizes comparable
-    - Reduces memory usage during registration
-
 Usage:
     python atlas_preparation.py
 """
@@ -33,20 +8,18 @@ import SimpleITK as sitk
 from pathlib import Path
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
+# Paths
 ATLAS_IMG_PATH = Path(r"...ARCHIVE\1-200\100.img.nii.gz")
 ATLAS_SEG_PATH = Path(r"...ARCHIVE\1-200\100.label.nii.gz")
 OUT_DIR        = Path(r"...\COCA_output\atlas")
 
-# ── Target spacing — must match COCA resampled scans ──────────────────────────
-TARGET_SPACING = [0.7, 0.7, 3.0]   # recommended
+# Target spacing — must match COCA resampled scans
+TARGET_SPACING = [0.7, 0.7, 3.0]   # recommended values
 
-# ── HU Window (same as Part 1 — cardiac calcium range) ────────────────────────
+# HU Window
 HU_MIN = -100.0
 HU_MAX =  900.0
 
-
-# ── Core Functions ─────────────────────────────────────────────────────────────
 
 def resample_volume(volume: sitk.Image,
                     target_spacing: list,
@@ -66,7 +39,6 @@ def resample_volume(volume: sitk.Image,
     original_spacing = volume.GetSpacing()    # (X, Y, Z)
     original_size    = volume.GetSize()       # (X, Y, Z)
 
-    # Compute new size to preserve physical extent
     # NewSize = OldSize * (OldSpacing / NewSpacing)
     new_size = [
         int(round(original_size[i] * (original_spacing[i] / target_spacing[i])))
@@ -104,7 +76,6 @@ def apply_hu_window(image: sitk.Image,
     Returns:
         SimpleITK image with float32 values in [0, 1]
     """
-    # Cast to float32 first
     image = sitk.Cast(image, sitk.sitkFloat32)
 
     # Clip to window
@@ -138,11 +109,10 @@ def print_volume_stats(label: str, volume: sitk.Image, is_mask: bool = False):
         print(f"    HU std  : {arr.std():.2f}")
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+# Main
 
 if __name__ == "__main__":
 
-    # ── Verify inputs exist ────────────────────────────────────────────────
     assert ATLAS_IMG_PATH.exists(), f"Atlas image not found: {ATLAS_IMG_PATH}"
     assert ATLAS_SEG_PATH.exists(), f"Atlas mask not found:  {ATLAS_SEG_PATH}"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -151,7 +121,6 @@ if __name__ == "__main__":
     print("  ATLAS PREPARATION — Step 1 of Part 2")
     print("=" * 55)
 
-    # ── Load ───────────────────────────────────────────────────────────────
     print("\nLoading atlas files...")
     atlas_img = sitk.ReadImage(str(ATLAS_IMG_PATH))
     atlas_seg = sitk.ReadImage(str(ATLAS_SEG_PATH))
@@ -160,7 +129,7 @@ if __name__ == "__main__":
     print_volume_stats("Atlas image", atlas_img, is_mask=False)
     print_volume_stats("Atlas mask",  atlas_seg, is_mask=True)
 
-    # ── Resample ───────────────────────────────────────────────────────────
+    # Resample 
     print(f"\nResampling to {TARGET_SPACING} mm...")
     resampled_img = resample_volume(atlas_img, TARGET_SPACING, is_mask=False)
     resampled_seg = resample_volume(atlas_seg, TARGET_SPACING, is_mask=True)
@@ -169,12 +138,12 @@ if __name__ == "__main__":
     print_volume_stats("Atlas image (resampled)", resampled_img, is_mask=False)
     print_volume_stats("Atlas mask  (resampled)", resampled_seg, is_mask=True)
 
-    # ── Apply HU windowing to image ────────────────────────────────────────
+    # Apply HU windowing to image
     print("\nApplying HU windowing [-100, 900] → [0, 1]...")
     windowed_img = apply_hu_window(resampled_img)
     print_volume_stats("Atlas image (windowed)", windowed_img, is_mask=False)
 
-    # ── Save ───────────────────────────────────────────────────────────────
+    # Save
     print("\nSaving atlas files...")
 
     atlas_img_out = OUT_DIR / "atlas_img.nii.gz"
@@ -183,11 +152,11 @@ if __name__ == "__main__":
     sitk.WriteImage(windowed_img, str(atlas_img_out), useCompression=True)
     sitk.WriteImage(resampled_seg, str(atlas_seg_out), useCompression=True)
 
-    print(f"\n✅ Atlas prepared successfully:")
+    print(f"\n Atlas prepared successfully:")
     print(f"   Image → {atlas_img_out}")
     print(f"   Mask  → {atlas_seg_out}")
 
-    # ── Sanity check ───────────────────────────────────────────────────────
+    # Sanity check
     print("\nSanity checks:")
     arr_img = sitk.GetArrayFromImage(windowed_img)
     arr_seg = sitk.GetArrayFromImage(resampled_seg)
