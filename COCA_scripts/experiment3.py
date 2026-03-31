@@ -4,7 +4,7 @@ experiment3.py
 Experiment 3: Full 25-scan registration and validation using
 Scan 50 as atlas (best performer from Experiment 2).
 
-Reuses:
+Required:
   - resample_volume()            from atlas_preparation.py
   - apply_hu_window()            from atlas_preparation.py
   - register_atlas_to_scan()     from registration.py
@@ -49,7 +49,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# ── Reuse existing modules ─────────────────────────────────────────────────────
+#  Reuse existing modules 
 import sys
 sys.path.insert(0, str(Path(r"C:\Users\muham\Desktop\gsoc\code\COCA_scripts")))
 
@@ -69,7 +69,7 @@ from validation import (
 )
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
+#  Paths 
 ATLAS_SCAN_NUM = 50   # best atlas from Experiment 2
 IMAGECAS_DIR   = Path(r"...\ARCHIVE\1-200")
 SPLIT_CSV      = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
@@ -81,12 +81,11 @@ VAL_OUT        = EXP3_OUT / "validation"
 TARGET_SPACING = [0.7, 0.7, 3.0]
 
 
-# ── Step 1: Prepare Scan 50 atlas ──────────────────────────────────────────────
+#  Step 1: Prepare Scan 50 atlas 
 
 def prepare_atlas() -> tuple:
     """
     Loads, resamples and windows ImageCAS Scan 50.
-    Reuses resample_volume() and apply_hu_window() from atlas_preparation.py
     """
     ATLAS_OUT.mkdir(parents=True, exist_ok=True)
 
@@ -104,11 +103,11 @@ def prepare_atlas() -> tuple:
     print(f"  Raw mask  : vessel_voxels="
           f"{int(sitk.GetArrayFromImage(raw_seg).sum())}")
 
-    # Resample — reusing atlas_preparation.resample_volume()
+    # Resample
     resampled_img = resample_volume(raw_img, TARGET_SPACING, is_mask=False)
     resampled_seg = resample_volume(raw_seg, TARGET_SPACING, is_mask=True)
 
-    # HU window → [0,1] — reusing atlas_preparation.apply_hu_window()
+    # HU window
     windowed_img  = apply_hu_window(resampled_img)
 
     # Cast to float32
@@ -128,15 +127,13 @@ def prepare_atlas() -> tuple:
     return atlas_img, atlas_seg
 
 
-# ── Step 2: Register all 25 candidates ────────────────────────────────────────
+#  Step 2: Register all 25 candidates 
 
 def run_registration(atlas_img: sitk.Image,
                      atlas_seg: sitk.Image,
                      candidates: pd.DataFrame) -> pd.DataFrame:
     """
     Registers Scan 50 atlas to all 25 candidate COCA scans.
-    Reuses register_atlas_to_scan() and apply_transform_to_volume()
-    from registration.py
     """
     REG_OUT.mkdir(parents=True, exist_ok=True)
     results = []
@@ -172,7 +169,7 @@ def run_registration(atlas_img: sitk.Image,
 
             t_start = time.time()
 
-            # Retry loop — reusing register_atlas_to_scan()
+            # Retry loop
             for attempt in range(REG_PARAMS["max_retries"]):
                 try:
                     rigid_tx, rigid_metric, rigid_time = \
@@ -203,7 +200,7 @@ def run_registration(atlas_img: sitk.Image,
             composite.AddTransform(rigid_tx)
             composite.AddTransform(affine_tx)
 
-            # Warp atlas image and mask — reusing apply_transform_to_volume()
+            # Warp atlas image and mask 
             warped_img = apply_transform_to_volume(
                 atlas_img, fixed_img, composite, is_mask=False
             )
@@ -243,7 +240,7 @@ def run_registration(atlas_img: sitk.Image,
 
             print(f"{scan_id:<15} {category:<12} {rigid_time:>9.1f} "
                   f"{affine_time:>10.1f} {total_time:>9.1f} "
-                  f"{affine_metric:>10.4f} {'✅':>6}")
+                  f"{affine_metric:>10.4f} {'Successful':>6}")
 
             results.append({
                 "scan_id"      : scan_id,
@@ -277,12 +274,12 @@ def run_registration(atlas_img: sitk.Image,
     print(f"  Mean time   : {successful['total_time_s'].mean():.1f}s per scan")
     print(f"  Total time  : {successful['total_time_s'].sum()/60:.1f} minutes")
     print(f"  Mean metric : {successful['final_metric'].mean():.4f}")
-    print(f"✅ Saved → {results_csv}")
+    print(f" Saved → {results_csv}")
 
     return results_df
 
 
-# ── Step 3: Validate all successful registrations ─────────────────────────────
+#  Step 3: Validate all successful registrations 
 
 def run_validation(reg_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -324,7 +321,7 @@ def run_validation(reg_df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         pct    = result["percentage_10mm"]
-        passed = "✅" if result["passes_target"] else "❌"
+        passed = "Passed" if result["passes_target"] else "Failed"
 
         print(f"{scan_id:<15} {category:<10} "
               f"{result['total_calcium']:>8} "
@@ -333,7 +330,7 @@ def run_validation(reg_df: pd.DataFrame) -> pd.DataFrame:
               f"{result['dist_mean_mm']:>8.1f}mm "
               f"{passed:>6}")
 
-        # Save overlay — reusing save_overlay() from validation.py
+        # Save overlay
         scan_val_out = VAL_OUT / scan_id
         scan_val_out.mkdir(parents=True, exist_ok=True)
         save_overlay(scan_id, category, result, img_path,
@@ -380,7 +377,7 @@ def run_validation(reg_df: pd.DataFrame) -> pd.DataFrame:
     val_csv = EXP3_OUT / "validation_results.csv"
     val_df.to_csv(val_csv, index=False)
 
-    # Summary figure — reusing save_summary_figure() from validation.py
+    # Summary figure
     print(f"\nGenerating summary figure...")
     success_df = val_df[val_df["status"] == "success"]
     save_summary_figure(success_df, EXP3_OUT / "experiment3_report.png")
@@ -388,7 +385,7 @@ def run_validation(reg_df: pd.DataFrame) -> pd.DataFrame:
     return val_df
 
 
-# ── Step 4: Print final summary ────────────────────────────────────────────────
+# Step 4: Print final summary
 
 def print_summary(val_df: pd.DataFrame):
     success_df = val_df[val_df["status"] == "success"]
@@ -421,13 +418,13 @@ def print_summary(val_df: pd.DataFrame):
     delta = success_df['percentage_10mm'].mean() - 50.4
     print(f"    Improvement  : {delta:+.1f}%")
 
-    print(f"\n✅ Registration results → {EXP3_OUT}/registration_results.csv")
+    print(f"\nRegistration results → {EXP3_OUT}/registration_results.csv")
     print(f"   Validation results  → {EXP3_OUT}/validation_results.csv")
     print(f"   Overlays            → {EXP3_OUT}/validation/{{scan_id}}/overlay_slice.png")
     print(f"   Summary figure      → {EXP3_OUT}/experiment3_report.png")
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+# Main
 
 def run_experiment3():
     print("=" * 62)
