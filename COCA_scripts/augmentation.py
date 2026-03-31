@@ -1,14 +1,5 @@
 """
-augmentation.py
-───────────────
 Data Augmentation Pipeline for Cardiac Calcium Scoring CT.
-
-Design principles:
-  - Geometric transforms applied to BOTH image and mask simultaneously
-  - No elastic deformation (calcium is physically rigid)
-  - Conservative intensity augmentation (HU values are absolute)
-  - Training augmentation only — val/test get identity transform
-
 Usage:
     from augmentation import get_train_transforms, get_val_transforms
 """
@@ -33,34 +24,33 @@ from monai.transforms import (
 import numpy as np
 
 
-# ── HU Window Constants (must match hu_windowing.py) ──────────────────────────
+# HU Window Constants (must match hu_windowing.py)
 HU_MIN = -100.0
 HU_MAX =  900.0
 
 
-# ── Transform Factories ────────────────────────────────────────────────────────
+#  Transform Factories
 
 def get_train_transforms():
     """
     Full augmentation pipeline for TRAINING set.
 
-    Order matters:
       1. Load & format first
-      2. HU windowing (deterministic)
-      3. Geometric augmentation (random, applied to both image+mask)
-      4. Intensity augmentation (random, applied to image only)
+      2. HU windowing
+      3. Geometric augmentation
+      4. Intensity augmentation (random, applied to image only
 
     Returns:
         MONAI Compose object
     """
     return Compose([
 
-        # ── Step 1: Load NIfTI files ───────────────────────────────────────
+        #  Step 1: Load NIfTI files
         LoadImaged(keys=["image", "mask"], image_only=True),
         EnsureChannelFirstd(keys=["image", "mask"]),  # (Z,Y,X) → (1,Z,Y,X)
         EnsureTyped(keys=["image", "mask"], dtype=np.float32),
 
-        # ── Step 2: HU Windowing (deterministic) ──────────────────────────
+        #  Step 2: HU Windowing
         # Clips raw HU to [-100, 900] then normalizes to [0, 1]
         ScaleIntensityRanged(
             keys=["image"],
@@ -71,7 +61,7 @@ def get_train_transforms():
             clip=True          # clips values outside [a_min, a_max]
         ),
 
-        # ── Step 3: Geometric Augmentation ────────────────────────────────
+        #  Step 3: Geometric Augmentation 
         # Applied IDENTICALLY to both image and mask
 
         # Left/Right flip only (axis=0 in channel-first = spatial axis Z)
@@ -82,7 +72,7 @@ def get_train_transforms():
             prob=0.50
         ),
 
-        # Small rotations — simulates patient positioning variability
+        # Small rotations to simulate patient positioning variability
         # range_x/y/z in radians: 15° = 0.2618 rad
         RandRotated(
             keys=["image", "mask"],
@@ -95,7 +85,7 @@ def get_train_transforms():
             padding_mode="zeros"
         ),
 
-        # Zoom — simulates body habitus variation
+        # Zoom to simulate body habitus variation
         RandZoomd(
             keys=["image", "mask"],
             min_zoom=0.85,
@@ -105,10 +95,10 @@ def get_train_transforms():
             keep_size=True
         ),
 
-        # ── Step 4: Intensity Augmentation ────────────────────────────────
-        # Applied to IMAGE ONLY — mask stays binary 0/1
+        #  Step 4: Intensity Augmentation
+        # Applied to IMAGE ONLY, mask stays binary 0/1
 
-        # Gaussian noise — simulates scanner noise
+        # Gaussian noise to simulate scanner noise
         # std is in normalized [0,1] space: 0.05 ≈ 50 HU
         RandGaussianNoised(
             keys=["image"],
@@ -117,7 +107,7 @@ def get_train_transforms():
             prob=0.20
         ),
 
-        # Intensity scaling — simulates scanner calibration differences
+        # Intensity scaling to simulate scanner calibration differences
         # factor ±10% → multiplies intensity by U(0.90, 1.10)
         RandScaleIntensityd(
             keys=["image"],
@@ -231,7 +221,7 @@ def verify_augmentation(resampled_dir: str, n_samples: int = 2):
             all_passed = False
     
     print("\nChecks:")
-    print(f"  All scans passed  {'✅' if all_passed else '❌'}")
+    print(f"  All scans passed  {'YES' if all_passed else 'NO'}")
 
 
 # ── Standalone run ─────────────────────────────────────────────────────────────
