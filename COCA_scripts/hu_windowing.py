@@ -26,8 +26,6 @@ HU_MIN = WINDOW_CENTER - WINDOW_WIDTH // 2   # -100 HU
 HU_MAX = WINDOW_CENTER + WINDOW_WIDTH // 2   #  900 HU
 
 
-# ── Core Functions ─────────────────────────────────────────────────────────────
-
 def apply_window(
     image: np.ndarray,
     hu_min: float = HU_MIN,
@@ -75,7 +73,7 @@ def window_from_sitk(image: sitk.Image) -> np.ndarray:
 
 def verify_windowing(resampled_dir: str, n_samples: int = 5):
     """
-    Spot-checks windowing on n_samples scans from the resampled directory.
+    To Spot-checks windowing on n_samples scans from the resampled directory.
     Prints before/after statistics to confirm windowing is working correctly.
 
     Args:
@@ -125,7 +123,6 @@ def verify_windowing(resampled_dir: str, n_samples: int = 5):
           f"(Center={WINDOW_CENTER}, Width={WINDOW_WIDTH})")
 
 
-# ── Standalone run ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     RESAMPLED_DIR = r"...\COCA_output\data_resampled"
