@@ -16,18 +16,14 @@ Method:
   5. Count how many calcium voxels have distance <= 10mm
   6. Divide by total calcium voxels → percentage
 
-Why EDT instead of explicit centerlines:
-  Vessel diameter ~3-5mm → centerline is ~1.5-2.5mm inside wall
-  At 10mm tolerance this difference is negligible
-  EDT on vessel mask is simpler, faster, equally valid
 
 Outputs:
   - validation_output/
       ├── {scan_id}/
-      │    ├── validation_meta.json     ← per-scan metrics
-      │    └── overlay_slice.png        ← visual overlay
-      ├── validation_results.csv        ← summary table
-      └── validation_report.png         ← summary figure
+      │    ├── validation_meta.json     
+      │    └── overlay_slice.png        
+      ├── validation_results.csv        
+      └── validation_report.png         
 
 Usage:
     python validation.py
@@ -45,19 +41,16 @@ from pathlib import Path
 from scipy.ndimage import distance_transform_edt
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 SPLIT_CSV   = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
 RESAMPLED   = Path(r"...\COCA_output\data_resampled")
 REG_OUT     = Path(r"...\COCA_output\registration_output")
 VAL_OUT     = Path(r"...\COCA_output\validation_output")
 REG_CSV     = REG_OUT / "registration_results.csv"
 
-# ── Validation Parameters ──────────────────────────────────────────────────────
+# ] Validation Parameters 
 DISTANCE_THRESHOLD_MM = 10.0   # ±10/15mm tolerance
 TARGET_PERCENTAGE     = 70.0   # >70% target
 
-
-# ── Core Validation Function ───────────────────────────────────────────────────
 
 def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
     """
@@ -70,7 +63,7 @@ def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
     Returns:
         dict with validation metrics
     """
-    # ── Load warped vessel mask (atlas in COCA space) ──────────────────────
+    #  Load warped vessel mask (atlas in COCA space) 
     warped_seg_path = REG_OUT / scan_id / "warped_atlas_seg.nii.gz"
     calcium_path    = RESAMPLED / scan_id / f"{scan_id}_seg.nii.gz"
 
@@ -86,18 +79,16 @@ def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
         sitk.ReadImage(str(calcium_path))
     ).astype(np.uint8)
 
-    # ── Align shapes if needed ─────────────────────────────────────────────
-    # Warped seg should match calcium seg shape — crop/pad if minor mismatch
+    #  Align shapes if needed 
+    # Warped seg should match calcium seg shape, crop/pad if minor mismatch
     if warped_seg.shape != calcium_seg.shape:
         min_shape = tuple(min(a, b) for a, b in
                           zip(warped_seg.shape, calcium_seg.shape))
         warped_seg  = warped_seg[:min_shape[0], :min_shape[1], :min_shape[2]]
         calcium_seg = calcium_seg[:min_shape[0], :min_shape[1], :min_shape[2]]
 
-    # ── Compute EDT on vessel mask ─────────────────────────────────────────
-    # EDT gives distance in voxels — multiply by spacing to get mm
+    #  Compute EDT on vessel mask 
     # scipy EDT: distance from background (0) to nearest foreground (1)
-    # We want distance from any point to nearest vessel voxel
     # → invert: EDT on (1 - vessel_mask)
     vessel_binary = (warped_seg > 0).astype(np.uint8)
     vessel_voxels = int(vessel_binary.sum())
@@ -105,7 +96,7 @@ def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
     if vessel_voxels == 0:
         return {"status": "no_vessel_voxels"}
 
-    # Distance transform — sampling parameter converts voxels to mm
+    # Distance transform, sampling parameter converts voxels to mm
     # spacing order for scipy is (Z, Y, X) matching numpy array order
     spacing_zyx = [voxel_spacing[2], voxel_spacing[1], voxel_spacing[0]]
     dist_map_mm = distance_transform_edt(
@@ -113,7 +104,7 @@ def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
         sampling=spacing_zyx
     )
 
-    # ── Compute validation metric ──────────────────────────────────────────
+    #  Compute validation metric 
     calcium_binary  = (calcium_seg > 0).astype(np.uint8)
     total_calcium   = int(calcium_binary.sum())
 
@@ -152,7 +143,7 @@ def validate_scan(scan_id: str, voxel_spacing: list) -> dict:
     }
 
 
-# ── Visual Overlay ─────────────────────────────────────────────────────────────
+#  Visual Overlay 
 
 def save_overlay(scan_id, category, result, img_path, out_path):
     """
@@ -178,7 +169,7 @@ def save_overlay(scan_id, category, result, img_path, out_path):
     dist_map    = dist_map[:min_shape[0], :min_shape[1], :min_shape[2]]
     warped_seg  = warped_seg[:min_shape[0], :min_shape[1], :min_shape[2]]
 
-    # Find best slice — most calcium voxels
+    # Find best slice,  most calcium voxels
     calcium_per_slice = calcium_seg.sum(axis=(1, 2))
     if calcium_per_slice.max() == 0:
         best_slice = ct_img.shape[0] // 2
@@ -208,12 +199,12 @@ def save_overlay(scan_id, category, result, img_path, out_path):
         ax.set_title(title, fontsize=9, pad=6)
         ax.axis("off")
 
-    # Panel 2 — calcium overlay (red)
+    # Panel 2 calcium overlay
     if calcium_slice.max() > 0:
         ca_masked = np.ma.masked_where(calcium_slice == 0, calcium_slice)
         axes[1].imshow(ca_masked, cmap="autumn", alpha=0.8, vmin=0, vmax=1)
 
-    # Panel 3 — vessel zone (green, semi-transparent) + calcium (red)
+    # Panel 3: vessel zone+ calcium 
     if within_slice.max() > 0:
         zone_masked = np.ma.masked_where(within_slice == 0, within_slice)
         axes[2].imshow(zone_masked, cmap="Greens", alpha=0.35, vmin=0, vmax=1)
@@ -237,7 +228,7 @@ def save_overlay(scan_id, category, result, img_path, out_path):
         f"Scan: {scan_id}  |  Category: {category}  |  "
         f"Slice: {best_slice}  |  "
         f"Calcium within ±10mm: {pct:.1f}%  "
-        f"({'✓ PASS' if result['passes_target'] else '✗ FAIL'})",
+        f"({'PASS' if result['passes_target'] else 'FAIL'})",
         fontsize=10, fontweight="bold", color=color
     )
 
@@ -247,7 +238,6 @@ def save_overlay(scan_id, category, result, img_path, out_path):
     plt.close(fig)
 
 
-# ── Summary Figure ─────────────────────────────────────────────────────────────
 
 def save_summary_figure(results_df, out_path):
     """
@@ -267,7 +257,7 @@ def save_summary_figure(results_df, out_path):
         "Mild": "#34d399", "Moderate": "#f59e0b", "Severe": "#f87171"
     }
 
-    # ── Panel 1: % within 10mm per scan ───────────────────────────────────
+    # Panel 1: % within 10mm per scan 
     ax = axes[0, 0]
     colors = [
         "#16a34a" if p >= TARGET_PERCENTAGE else "#dc2626"
@@ -294,7 +284,7 @@ def save_summary_figure(results_df, out_path):
             color="#16a34a" if pass_count == len(df) else "#dc2626",
             fontweight="bold")
 
-    # ── Panel 2: Distance distribution histogram ───────────────────────────
+    # Panel 2: Distance distribution histogram 
     ax = axes[0, 1]
     all_means   = df["dist_mean_mm"].values
     all_medians = df["dist_median_mm"].values
@@ -313,7 +303,7 @@ def save_summary_figure(results_df, out_path):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # ── Panel 3: Per-category pass rate ───────────────────────────────────
+    # Panel 3: Per-category pass rate 
     ax = axes[1, 0]
     categories = ["Minimal", "Mild", "Moderate", "Severe"]
     pass_rates = []
@@ -347,7 +337,7 @@ def save_summary_figure(results_df, out_path):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # ── Panel 4: Registration metric vs validation % ───────────────────────
+    #  Panel 4: Registration metric vs validation % 
     ax = axes[1, 1]
     for cat in categories:
         cat_df = df[df["category"] == cat]
@@ -376,7 +366,6 @@ def save_summary_figure(results_df, out_path):
     print(f"  Summary figure → {out_path}")
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
 
 def run_validation():
     print("=" * 60)
@@ -385,16 +374,16 @@ def run_validation():
 
     VAL_OUT.mkdir(parents=True, exist_ok=True)
 
-    # ── Load successful registrations ──────────────────────────────────────
+    # Load successful registrations 
     reg_df     = pd.read_csv(REG_CSV)
     successful = reg_df[reg_df["status"] == "success"].reset_index(drop=True)
     print(f"\nSuccessful registrations: {len(successful)}")
 
-    # ── Load split index for category + spacing info ───────────────────────
+    #  Load split index for category + spacing info 
     split_df = pd.read_csv(SPLIT_CSV)
     scan_info = split_df.set_index("scan_id")
 
-    # ── Validation loop ────────────────────────────────────────────────────
+    # Validation loop 
     val_results = []
     print(f"\n{'─'*70}")
     print(f"{'Scan':<15} {'Cat':<10} {'Ca vox':>8} {'Within10':>9} "
@@ -423,7 +412,7 @@ def run_validation():
             continue
 
         pct    = result["percentage_10mm"]
-        passed = "✅" if result["passes_target"] else "❌"
+        passed = "Passed" if result["passes_target"] else "Fail"
 
         print(f"{scan_id:<15} {category:<10} "
               f"{result['total_calcium']:>8} "
@@ -432,14 +421,14 @@ def run_validation():
               f"{result['dist_mean_mm']:>8.1f}mm "
               f"{passed:>6}")
 
-        # ── Save per-scan overlay ──────────────────────────────────────
+        #  Save per-scan overlay 
         scan_val_out = VAL_OUT / scan_id
         scan_val_out.mkdir(parents=True, exist_ok=True)
 
         overlay_path = scan_val_out / "overlay_slice.png"
         save_overlay(scan_id, category, result, img_path, overlay_path)
 
-        # ── Save per-scan metadata ─────────────────────────────────────
+        #  Save per-scan metadata 
         meta = {
             "scan_id"         : scan_id,
             "category"        : category,
@@ -475,17 +464,17 @@ def run_validation():
             "total_time_s"    : float(row["total_time_s"]),
         })
 
-    # ── Save results CSV ───────────────────────────────────────────────────
+    #  Save results CSV 
     val_df      = pd.DataFrame(val_results)
     val_csv     = VAL_OUT / "validation_results.csv"
     val_df.to_csv(val_csv, index=False)
 
-    # ── Summary figures ────────────────────────────────────────────────────
+    #  Summary figures 
     print(f"\nGenerating summary figures...")
     success_df = val_df[val_df["status"] == "success"]
     save_summary_figure(success_df, VAL_OUT / "validation_report.png")
 
-    # ── Console summary ────────────────────────────────────────────────────
+    #  Console summary 
     print(f"\n{'='*60}")
     print(f"VALIDATION SUMMARY")
     print(f"{'='*60}")
@@ -503,7 +492,7 @@ def run_validation():
             cat_pass = (cat_df["percentage_10mm"] >= TARGET_PERCENTAGE).sum()
             print(f"    {cat:<12}: {cat_pass}/{len(cat_df)} pass  "
                   f"mean={cat_df['percentage_10mm'].mean():.1f}%")
-    print(f"\n✅ Results saved → {val_csv}")
+    print(f"\nResults saved → {val_csv}")
     print(f"   Overlays    → {VAL_OUT}/{{scan_id}}/overlay_slice.png")
     print(f"   Report      → {VAL_OUT}/validation_report.png")
 
