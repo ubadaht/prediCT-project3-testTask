@@ -8,7 +8,7 @@ representative subset of 8 COCA scans (2 per CAC category).
 
 Goal: Find which atlas gives best validation score and understand why.
 
-Reuses:
+Requires:
   - resample_volume()     from atlas_preparation.py
   - apply_hu_window()     from atlas_preparation.py
   - register_atlas_to_scan()     from registration.py
@@ -42,7 +42,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from scipy.ndimage import distance_transform_edt
 
-# ── Reuse existing modules ─────────────────────────────────────────────────────
 import sys
 sys.path.insert(0, str(Path(r"C:\Users\muham\Desktop\gsoc\code\COCA_scripts")))
 
@@ -51,7 +50,7 @@ from registration import register_atlas_to_scan, apply_transform_to_volume, REG_
 from validation import validate_scan, DISTANCE_THRESHOLD_MM, TARGET_PERCENTAGE
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
+# Paths
 IMAGECAS_DIR = Path(r"...\ARCHIVE\1-200")
 SPLIT_CSV    = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
 RESAMPLED    = Path(r"...\COCA_output\data_resampled")
@@ -59,16 +58,16 @@ EXP2_OUT     = Path(r"...\COCA_output\experiment2_output")
 REG_OUT_BASE = EXP2_OUT / "registrations"
 TARGET_SPACING = [0.7, 0.7, 3.0]
 
-# ── Atlas candidates to test ───────────────────────────────────────────────────
-# Scan 100 is our current baseline — included for fair comparison
+# Atlas candidates to test 
+# Scan 100 is our current baseline
 ATLAS_CANDIDATES = [1, 10, 50, 100]
 
-# ── Subset: 2 scans per category for fast comparison ──────────────────────────
-# Fixed subset — same 8 scans tested against all 4 atlases
+#  Subset: 2 scans per category for fast comparison
+# Fixed subset: same 8 scans tested against all 4 atlases
 SUBSET_PER_CATEGORY = 2
 
 
-# ── Step 1: Prepare atlas candidate ───────────────────────────────────────────
+#  Step 1: Prepare atlas candidate 
 
 def prepare_atlas_candidate(scan_num: int, out_dir: Path) -> dict:
     """
@@ -94,11 +93,11 @@ def prepare_atlas_candidate(scan_num: int, out_dir: Path) -> dict:
     raw_img = sitk.ReadImage(str(img_path))
     raw_seg = sitk.ReadImage(str(seg_path))
 
-    # Resample — reusing function from atlas_preparation.py
+    # Resample;:reusing function from atlas_preparation.py
     resampled_img = resample_volume(raw_img, TARGET_SPACING, is_mask=False)
     resampled_seg = resample_volume(raw_seg, TARGET_SPACING, is_mask=True)
 
-    # HU window → [0,1] — reusing function from atlas_preparation.py
+    # HU window
     windowed_img = apply_hu_window(resampled_img)
 
     # Cast
@@ -145,7 +144,7 @@ def prepare_atlas_candidate(scan_num: int, out_dir: Path) -> dict:
     }
 
 
-# ── Step 2: Select evaluation subset ──────────────────────────────────────────
+#  Step 2: Select evaluation subset
 
 def select_eval_subset(n_per_category: int = 2) -> pd.DataFrame:
     """
@@ -164,7 +163,7 @@ def select_eval_subset(n_per_category: int = 2) -> pd.DataFrame:
     subset_rows = []
     for cat in ["Minimal", "Mild", "Moderate", "Severe"]:
         cat_df = candidates[candidates["category"] == cat]
-        # Pick scans with most calcium voxels — more informative validation
+        # Pick scans with most calcium voxels
         picked = cat_df.nlargest(n_per_category, "voxels")
         subset_rows.append(picked)
 
@@ -172,7 +171,7 @@ def select_eval_subset(n_per_category: int = 2) -> pd.DataFrame:
     return subset
 
 
-# ── Step 3: Register one atlas to one scan ────────────────────────────────────
+#  Step 3: Register one atlas to one scan
 
 def register_and_validate(
     atlas_img   : sitk.Image,
@@ -202,7 +201,7 @@ def register_and_validate(
 
     t0 = time.time()
 
-    # Registration with retry — reusing register_atlas_to_scan()
+    # Registration with retry
     for attempt in range(REG_PARAMS["max_retries"]):
         try:
             rigid_tx, rigid_metric, rigid_time = register_atlas_to_scan(
@@ -238,7 +237,7 @@ def register_and_validate(
     warped_path = out_dir / f"{scan_id}_warped_seg.nii.gz"
     sitk.WriteImage(warped_seg, str(warped_path), useCompression=True)
 
-    # Validate — reusing validate_scan() from validation.py
+    # Validate
     # Temporarily write warped seg to expected path
     temp_reg_dir = EXP2_OUT / "temp_reg" / scan_id
     temp_reg_dir.mkdir(parents=True, exist_ok=True)
@@ -279,7 +278,7 @@ def register_and_validate(
     }
 
 
-# ── Step 4: Comparison figure ──────────────────────────────────────────────────
+#  Step 4: Comparison figure
 
 def save_comparison_figure(all_results: dict, out_path: Path):
     """
@@ -318,7 +317,7 @@ def save_comparison_figure(all_results: dict, out_path: Path):
         mean_times.append(ok["total_time_s"].mean() if len(ok) > 0 else 0)
         mean_metrics.append(ok["final_metric"].abs().mean() if len(ok) > 0 else 0)
 
-    # ── Panel 1: Mean % within 10mm ───────────────────────────────────────
+    #  Panel 1: Mean % within 10mm 
     ax = axes[0, 0]
     bars = ax.bar(atlas_labels, means, color=ATLAS_COLORS,
                   edgecolor="white", width=0.5)
@@ -337,7 +336,7 @@ def save_comparison_figure(all_results: dict, out_path: Path):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # ── Panel 2: Per-category breakdown ───────────────────────────────────
+    #  Panel 2: Per-category breakdown 
     ax = axes[0, 1]
     x      = np.arange(len(categories))
     width  = 0.2
@@ -363,7 +362,7 @@ def save_comparison_figure(all_results: dict, out_path: Path):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # ── Panel 3: Registration time ─────────────────────────────────────────
+    #  Panel 3: Registration time 
     ax = axes[1, 0]
     bars = ax.bar(atlas_labels, mean_times, color=ATLAS_COLORS,
                   edgecolor="white", width=0.5)
@@ -377,7 +376,7 @@ def save_comparison_figure(all_results: dict, out_path: Path):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # ── Panel 4: MI metric ────────────────────────────────────────────────
+    #  Panel 4: MI metric 
     ax = axes[1, 1]
     bars = ax.bar(atlas_labels, mean_metrics, color=ATLAS_COLORS,
                   edgecolor="white", width=0.5)
@@ -398,7 +397,7 @@ def save_comparison_figure(all_results: dict, out_path: Path):
     print(f"  Comparison figure → {out_path}")
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+#  Main 
 
 def run_experiment2():
     print("=" * 65)
@@ -407,7 +406,7 @@ def run_experiment2():
 
     EXP2_OUT.mkdir(parents=True, exist_ok=True)
 
-    # ── Step 1: Prepare all atlas candidates ──────────────────────────────
+    #  Step 1: Prepare all atlas candidates 
     print("\n[Step 1] Preparing atlas candidates...")
     atlas_data = {}
     for scan_num in ATLAS_CANDIDATES:
@@ -415,7 +414,7 @@ def run_experiment2():
         print(f"\n  Atlas Scan {scan_num}:")
         atlas_data[scan_num] = prepare_atlas_candidate(scan_num, out_dir)
 
-    # ── Step 2: Select evaluation subset ──────────────────────────────────
+    #  Step 2: Select evaluation subset 
     print(f"\n[Step 2] Selecting evaluation subset "
           f"({SUBSET_PER_CATEGORY} per category)...")
     subset = select_eval_subset(SUBSET_PER_CATEGORY)
@@ -424,7 +423,7 @@ def run_experiment2():
         print(f"    {row['scan_id']}  {row['category']:<12}  "
               f"voxels={row['voxels']}")
 
-    # ── Step 3: Register + validate each atlas on subset ──────────────────
+    #  Step 3: Register + validate each atlas on subset 
     print(f"\n[Step 3] Registering and validating...")
     all_results = {}
 
@@ -452,7 +451,7 @@ def run_experiment2():
             )
 
             if result["status"] == "success":
-                passed = "✅" if result["passes_target"] else "❌"
+                passed = "Yes" if result["passes_target"] else "No"
                 print(f"  {scan_id:<15} {category:<10} "
                       f"{result['total_time_s']:>6.1f}s "
                       f"{result['final_metric']:>8.4f} "
@@ -481,7 +480,7 @@ def run_experiment2():
             print(f"    Mean |MI metric|   : "
                   f"{ok['final_metric'].abs().mean():.4f}")
 
-    # ── Step 4: Save comparison table ─────────────────────────────────────
+    #  Step 4: Save comparison table 
     print(f"\n[Step 4] Saving results...")
     comparison_rows = []
     for scan_num in ATLAS_CANDIDATES:
@@ -505,10 +504,10 @@ def run_experiment2():
     comparison_csv = EXP2_OUT / "comparison_table.csv"
     comparison_df.to_csv(comparison_csv, index=False)
 
-    # ── Step 5: Comparison figure ──────────────────────────────────────────
+    #  Step 5: Comparison figure 
     save_comparison_figure(all_results, EXP2_OUT / "experiment2_report.png")
 
-    # ── Final summary ──────────────────────────────────────────────────────
+    #  Final summary 
     print(f"\n{'='*65}")
     print(f"EXPERIMENT 2 RESULTS")
     print(f"{'='*65}")
