@@ -1,9 +1,7 @@
 """
-stratified_split.py
-───────────────────
 Stratified Train/Val/Test Split for COCA Calcium Scoring Dataset.
 
-Strategy:
+Workflow:
   - Map raw voxel counts → 5 CAC clinical categories
   - Split 70/15/15 within each category (preserves class proportions)
   - Flag 20-30 test scans as Part 2 (registration) candidates
@@ -21,25 +19,22 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from collections import Counter
 
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 CSV_IN  = Path(r"...\COCA_output\data_canonical\tables\scan_index.csv")
 CSV_OUT = Path(r"...\COCA_output\data_canonical\tables\split_index.csv")
 
-# ── Split ratios ───────────────────────────────────────────────────────────────
+#  Split ratios 
 VAL_RATIO  = 0.15   # 15% validation
 TEST_RATIO = 0.15   # 15% test
 # Train = remaining 70%
 
-# ── CAC Category boundaries (voxel counts) ────────────────────────────────────
-# Based on clinical Agatston score categories adapted to voxel proxy
+#  CAC Category boundaries (voxel counts) 
 CAC_BINS   = [0, 1, 101, 501, 1501, np.inf]
 CAC_LABELS = ["Zero", "Minimal", "Mild", "Moderate", "Severe"]
 
-# ── Part 2 registration candidates ────────────────────────────────────────────
+#  Part 2 registration candidates 
 N_PART2 = 25   # how many scans to flag for atlas registration
 
 
-# ── Core Functions ─────────────────────────────────────────────────────────────
 
 def assign_category(voxels: pd.Series) -> pd.Series:
     """
@@ -85,7 +80,7 @@ def stratified_split(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["split"] = ""
 
-    # ── Stage 1: Split off test set ────────────────────────────────────────
+    #  Stage 1: Split off test set 
     sss1 = StratifiedShuffleSplit(
         n_splits=1,
         test_size=TEST_RATIO,
@@ -95,11 +90,10 @@ def stratified_split(df: pd.DataFrame) -> pd.DataFrame:
 
     df.iloc[test_idx, df.columns.get_loc("split")] = "test"
 
-    # ── Stage 2: Split train+val into train and val ────────────────────────
+    #  Stage 2: Split train+val into train and val 
     df_trainval = df.iloc[trainval_idx].copy()
 
     # val ratio relative to trainval subset
-    # we want 15% of total → 15/85 = 0.1765 of trainval
     val_ratio_adjusted = VAL_RATIO / (1 - TEST_RATIO)
 
     sss2 = StratifiedShuffleSplit(
@@ -124,7 +118,7 @@ def flag_part2_candidates(df: pd.DataFrame, n: int = N_PART2) -> pd.DataFrame:
     """
     Selects n scans from the TEST set as Part 2 registration candidates.
 
-    Selection strategy:
+    Criteria:
       - Only from test split
       - Only non-zero calcium (registration validation needs calcium)
       - Balanced across non-zero categories (Minimal/Mild/Moderate/Severe)
@@ -153,7 +147,7 @@ def flag_part2_candidates(df: pd.DataFrame, n: int = N_PART2) -> pd.DataFrame:
     selected_indices = []
     for i, cat in enumerate(non_zero_cats):
         cat_scans = test_nonzero[test_nonzero["category"] == cat]
-        # give remainder slots to the most severe (most important for validation)
+        # give remainder slots to the most severe
         n_select  = per_category + (1 if i >= len(non_zero_cats) - remainder else 0)
         n_select  = min(n_select, len(cat_scans))   # can't select more than available
 
@@ -172,7 +166,7 @@ def print_statistics(df: pd.DataFrame):
     print("  DATASET SPLIT STATISTICS")
     print("═" * 60)
 
-    # ── Overall split counts ───────────────────────────────────────────────
+    #  Overall split counts 
     split_counts = df["split"].value_counts()
     total        = len(df)
     print(f"\nOverall split (total = {total}):")
@@ -181,7 +175,7 @@ def print_statistics(df: pd.DataFrame):
         pct = 100 * n / total
         print(f"  {split:<6}: {n:>4} scans  ({pct:.1f}%)")
 
-    # ── Category distribution per split ───────────────────────────────────
+    #  Category distribution per split 
     print(f"\nCategory distribution per split:")
     print(f"  {'Category':<12}", end="")
     for split in ["train", "val", "test", "TOTAL"]:
@@ -198,7 +192,7 @@ def print_statistics(df: pd.DataFrame):
             print(f" {n:>8}", end="")
         print(f" {cat_total:>8}")
 
-    # ── Proportions check ─────────────────────────────────────────────────
+    #  Proportions check 
     print(f"\nCategory proportions per split (should be ~equal):")
     print(f"  {'Category':<12}", end="")
     for split in ["train", "val", "test"]:
@@ -215,14 +209,14 @@ def print_statistics(df: pd.DataFrame):
             print(f" {pct:>7.1f}%", end="")
         print()
 
-    # ── Part 2 candidates ─────────────────────────────────────────────────
+    #  Part 2 candidates 
     part2 = df[df["part2_candidate"] == True]
     print(f"\nPart 2 (Registration) candidates: {len(part2)} scans")
     print(f"  Category breakdown:")
     for cat, count in part2["category"].value_counts().items():
         print(f"    {cat:<12}: {count} scans")
 
-    # ── Calcium voxel stats per split ─────────────────────────────────────
+    #  Calcium voxel stats per split 
     print(f"\nCalcium voxel statistics per split:")
     print(f"  {'Split':<8} {'Mean':>8} {'Median':>8} {'Max':>8} {'Zero%':>8}")
     print("  " + "─" * 44)
@@ -237,7 +231,7 @@ def print_statistics(df: pd.DataFrame):
 
 def load_splits(csv_path: str = str(CSV_OUT)):
     """
-    Utility function for DataLoader — loads split_index.csv and
+    Utility function for DataLoader, loads split_index.csv and
     returns three DataFrames: train, val, test.
 
     Usage:
@@ -255,34 +249,32 @@ def load_splits(csv_path: str = str(CSV_OUT)):
     return train, val, test
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
 
-    # ── Load scan index ────────────────────────────────────────────────────
+    #  Load scan index 
     print(f"Loading {CSV_IN}...")
     df = pd.read_csv(CSV_IN)
     print(f"Loaded {len(df)} scans.")
 
-    # ── Assign CAC categories ──────────────────────────────────────────────
+    #  Assign CAC categories 
     df["category"] = assign_category(df["voxels"])
     print(f"\nCAC category distribution:")
     for cat, count in df["category"].value_counts().items():
         pct = 100 * count / len(df)
         print(f"  {cat:<12}: {count:>4} ({pct:.1f}%)")
 
-    # ── Perform stratified split ───────────────────────────────────────────
+    #  Perform stratified split 
     print(f"\nPerforming stratified 70/15/15 split...")
     df = stratified_split(df)
 
-    # ── Flag Part 2 candidates ─────────────────────────────────────────────
+    #  Flag Part 2 candidates 
     print(f"Selecting {N_PART2} Part 2 registration candidates...")
     df = flag_part2_candidates(df, n=N_PART2)
 
-    # ── Print statistics ───────────────────────────────────────────────────
     print_statistics(df)
 
-    # ── Save ───────────────────────────────────────────────────────────────
+    # Save 
     df.to_csv(CSV_OUT, index=False)
-    print(f"\n✅ Saved split_index.csv → {CSV_OUT}")
+    print(f"\n Saved split_index.csv → {CSV_OUT}")
     print(f"   Columns: {df.columns.tolist()}")
