@@ -10,7 +10,7 @@
 
 A two-part pipeline for cardiac CT preprocessing and coronary atlas registration, developed as the pre-task submission for the GSoC 2026 PrediCT project. Part 1 preprocesses the COCA calcium scoring dataset and builds a PyTorch DataLoader. Part 2 registers an ImageCAS CCTA coronary atlas to 30 non-contrast CT scans and validates anatomical proximity of registered vessel territories to real calcium deposits.
 
-![Pipeline Overview](graphics/fig1_pipeline.svg)
+![Pipeline Overview](graphics/fig1_pipeline.png)
 *Full registration pipeline — atlas and COCA scans are preprocessed independently, aligned via MOMENTS initialisation, registered through two sequential stages, and the composite transform is applied to the vessel mask for validation.*
 
 
@@ -34,31 +34,16 @@ A two-part pipeline for cardiac CT preprocessing and coronary atlas registration
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-username>/predicт-gsoc2026.git
+git clone https://github.com/ubadaht/prediCT-project3-testTask.git
 cd predict-gsoc2026
 
-# Create and activate conda environment (recommended)
-conda create -n predict python=3.10
+# Create and activate conda environment
+conda create -n predict python
 conda activate predict
 
 # Install dependencies
 pip install -r requirements.txt
 ```
-
-### Requirements
-
-```
-SimpleITK >= 2.3.0   # Registration engine
-numpy >= 1.24.0      # Array operations
-scipy >= 1.11.0      # EDT validation
-pandas >= 2.0.0      # Results tracking
-matplotlib >= 3.7.0  # Visualisation
-torch >= 2.0.0       # Part 1 DataLoader
-Pillow >= 10.0.0     # Image I/O
-jupyter >= 1.0.0     # Validation notebook
-tqdm >= 4.65.0       # Progress bars
-```
-
 ---
 
 ## Data Setup
